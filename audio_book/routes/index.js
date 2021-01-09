@@ -198,5 +198,28 @@ router.post('/get_article_detail', async function (next) {
   }
 });
 
+
+// 发送新评论
+router.post('/send_new_comment', async function (next) {
+  const res = await DB.find('pgc_list', {a_id: this.request.body.a_id});
+  const obj = {
+    status: 'online',
+    top: true,
+    kind: 'hot',
+    content: this.request.body.comment,
+    author: this.request.body.r_id,
+    like: 0,
+    like_men: []
+  };
+  res[0].comment.push(obj);
+  const ret = await DB.update('pgc_list', {a_id: this.request.body.a_id}, res[0]);
+  if (ret.result.ok === 1) {
+    this.body = {
+      status: 1,
+      data: {}
+    }
+  }
+});
+
 module.exports = router;
 
