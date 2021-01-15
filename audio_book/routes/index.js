@@ -221,5 +221,51 @@ router.post('/send_new_comment', async function (next) {
   }
 });
 
+router.post('/get_book_grouplist', async function (next) {
+  let obj = {};
+  if (this.request.body.grade !== undefined) {
+    obj.grade = this.request.body.grade;
+  }
+  if (this.request.body.tag !== undefined) {
+    obj.tag = this.request.body.tag;
+  }
+  const res = await DB.find('book_group_list', obj);
+  for (let i in res) {
+    res[i].buy = false;
+    res[i].pay = false;
+    for (let j in res[i].hasBuy) {
+      if (res[i].hasBuy[j] === this.request.body.r_id) {
+        res[i].buy = true;
+      }
+    }
+    for (let j in res[i].hasPay) {
+      if (res[i].hasPay[j] === this.request.body.r_id) {
+        res[i].pay = true;
+      }
+    }
+    res[i].tag = '';
+    for (let k = 0; k < res[i].tags.length; k++) {
+      if (k !== res[i].tags.length - 1) {
+        res[i].tag += `${res[i].tags[k]}/`;
+      } else {
+        res[i].tag += `${res[i].tags[k]}`;
+      }
+    }
+  }
+  const arr = [];
+  for (let i in res) {
+    if (!res[i].pay) {
+      arr.push(res[i]);
+    }
+  }
+  this.body = {
+    status: 1,
+    data: {
+      voc_count: 99999,
+      list: arr
+    }
+  };
+});
+
 module.exports = router;
 
