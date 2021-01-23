@@ -29,7 +29,7 @@ router.post('/login', async function(ctx) {
       this.body = {
         status: 1,
         desc: '登录成功',
-        rId: res[0].rId
+        r_id: res[0].rId
       }
     } else {
       this.body = {
@@ -54,7 +54,7 @@ router.post('/sign', async function(ctx) {
     }
   } else {
     const res = await DB.insert('user', {
-      rId: `r_${md5(this.request.body.account)}`,
+      r_id: `r_${md5(this.request.body.account)}`,
       account: this.request.body.account,
       password: this.request.body.password,
       nickname: this.request.body.nickname,
@@ -97,7 +97,8 @@ router.get('/top_pic', function *(next) {
 
 // 获取用户today界面的今日数据
 router.post('/get_user_today_info', async function (next) {
-  const res = await DB.find('user_info', {rId: this.request.body.rId});
+  console.log(this.request.body.rId);
+  const res = await DB.find('user_info', {r_id: this.request.body.rId});
   const arr = [];
   for (let i in res[0].is_read_book) {
     const ret = await DB.find('book_info', {book_id: res[0].is_read_book[i].book_id});
@@ -180,7 +181,7 @@ router.post('/get_article_detail', async function (next) {
     }
   }
   for (let i in res[0].comment) {
-    const ret = await DB.find('user', {rId: res[0].comment[i].author});
+    const ret = await DB.find('user', {r_id: res[0].comment[i].author});
     res[0].comment[i].author_info = ret[0];
     res[0].comment[i].comment_is_like = false;
     for (let j in res[0].comment[i].like_men) {
@@ -221,6 +222,8 @@ router.post('/send_new_comment', async function (next) {
   }
 });
 
+
+// 发送课程购买的相关信息
 router.post('/get_book_grouplist', async function (next) {
   let obj = {};
   if (this.request.body.grade !== undefined) {
@@ -265,6 +268,86 @@ router.post('/get_book_grouplist', async function (next) {
       list: arr
     }
   };
+});
+
+
+// 购物车添加或删除商品
+router.post('/post_shoppingcart_info', async function (next) {
+  let gId = this.request.body.groupId;
+  let id = this.request.body.r_id;
+  let res = await DB.find('book_group_list', {group_id: gId});
+  if (this.request.body.buy) {
+    let flag = false;
+    for (let j in res[0].hasBuy) {
+      if (res[0].hasBuy[j] === id) {
+        flag = true;
+      }
+    }
+    if (!flag) {
+      res[0].hasBuy.push(id);
+    }
+  } else {
+    res[0].hasBuy.splice(res[0].hasBuy.findIndex(e => e === id), 1);
+  }
+  ret = await DB.update('book_group_list', {group_id: gId}, res[0]);
+  if (ret.result.ok === 1) {
+    this.body = {
+      status: 1,
+      data: {}
+    };
+  }
+});
+
+
+// 书单详情页数据获取
+router.get('/get_course_info_detail', async function (next) {
+  console.log(this.request.ctx.query.group_id);
+  let res = await DB.find('user', {r_id: this.request.ctx.query.r_id});
+  const now_voc1 = await DB.find('user_info', {r_id: this.request.ctx.query.r_id});
+  const now_voc =now_voc1[0].now_voc;
+  let ret = await DB.find('book_group_list', {group_id: this.request.ctx.query.group_id});
+  ret[0].grade_cn = ret[0].grade === 0 ? '入门级' : ret[0].grade === 1 ? '经典级' : ret[0].grade === 2 ? '进阶级' : '高阶';
+  const startDate = ret[0].date.split('-')[0];
+  const endDate = ret[0].date.split('-')[1];
+  ret[0].date_cn = `开课：${new Date(startDate).getMonth() < 9 ? 0 : ''}${new Date(startDate).getMonth() + 1}月${new Date(startDate).getDate()}日 - 结课：${new Date(endDate).getMonth() < 9 ? 0 : ''}${new Date(endDate).getMonth() + 1}月${new Date(endDate).getDate()}日`;
+  ret[0].tag_cn = `${ret[0].tags[0]}/${ret[0].tags[1]}/${ret[0].tags[2]}`;
+  ret[0].is_fit = now_voc > ret[0].fit_voc ? true : false;
+  ret[0].books_detail = [];
+  for (let i in ret[0].book_list) {
+    const result = await DB.find('book_info', {book_id: ret[0].book_list[i].book_id});
+    ret[0].books_detail.push(result[0]);
+  }
+  for (let i in ret[0].books_detail) {
+    for (let j in ret[0].books_detail[i].hot_comments) {
+      let flag = true;
+      for (let z in ret[0].books_detail[i].hot_comments[j].like_men) {
+        if (ret[0].books_detail[i].hot_comments[j].like_men[z] === this.request.ctx.query.r_id) {
+          flag = false;
+        }
+      }
+      if (flag) {
+        ret[0].books_detail[i].hot_comments[j].is_like = false;
+      } else {
+        ret[0].books_detail[i].hot_comments[j].is_like = true;
+      }
+    }
+  }
+  this.body = {
+    status: 1,
+    data: ret[0]
+  }
+});
+
+// 个人信息页获取
+router.get('/get_person_info', async function (next) {
+  const res = await DB.find('user', {r_id: this.request.ctx.query.r_id});
+  const ret = await DB.find('user_info', {r_id: this.request.ctx.query.r_id});
+  delete res[0].password;
+  res[0].info_detail = ret[0];
+  this.body = {
+    status: 1,
+    data: res[0]
+  }
 });
 
 module.exports = router;
