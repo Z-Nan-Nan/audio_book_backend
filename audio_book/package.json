@@ -9,7 +9,9 @@
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "dependencies": {
+    "@koa/cors": "^2.2.3",
     "co": "^4.6.0",
+    "dayjs": "^1.10.4",
     "debug": "^2.6.3",
     "jade": "~1.11.0",
     "koa": "^1.4.0",
