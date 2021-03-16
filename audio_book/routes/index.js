@@ -888,6 +888,53 @@ router.post('/send_new_book', async function(next) {
 });
 
 
+// 修改书籍
+router.post('/update_book', async function(next) {
+  if (this.request.body.new_chapter !== '') {
+    let json = JSON.parse(`${this.request.body.new_chapter}`);
+    const arr = [];
+    const arr1 = new Set();
+    for (const i in json.sentences) {
+      arr.push(json.sentences[i].content);
+      if (arr1.size < 10) {
+        if (json.sentences[i].content_style.indexOf('{*8') > -1) {
+          let temp = json.sentences[i].content_style.split('{*8');
+          arr1.add(temp[0].split(' ').pop());
+        }
+      }
+    }
+    const ret = await DB.insert('article_info', { 
+      a_id : `a_00${this.request.body.chapter_num.length >= 9 ? this.request.body.chapter_num.length + 1 : 0}${this.request.body.chapter_num.length < 9 ? this.request.body.chapter_num.length + 1 : ''}`,
+      book_id: this.request.body.book_id,
+      day: this.request.body.chapter_num.length + 1,
+      sentences: [],
+      raw_word: [],
+      previous_story: '',
+      audio: []});
+    if (ret.result.ok === 1) {
+      const res = await DB.find('article_info', { day: this.request.body.chapter_num.length + 1 });
+      res[0].sentences = arr;
+      res[0].raw_word = Array.from(arr1);
+      res[0].previous_story = json.previous_story;
+      res[0].audio = json.audios;
+      res[0].audio.audio_times = json.audios.audio_times;
+      const ret = await DB.update('article_info', { day: this.request.body.chapter_num.length + 1 }, res[0]);
+    }
+  }
+  if (this.request.body.new_chapter !== '') {
+    this.request.body.chapter_num.push(`${this.request.body.chapter_num.length + 1}`);
+  }
+  delete this.request.body.new_chapter;
+  const result = await DB.update('book_info', { book_id: this.request.body.book_id }, this.request.body);
+    if (result.result.ok === 1) {
+      this.body = {
+        status: 1,
+        msg: 'ok'
+      }
+    }
+});
+
+
 // 获取所有书单
 router.get('/get_all_book_group', async function(next) {
   let box = [];
@@ -953,6 +1000,13 @@ router.get('/get_all_pgc_list', async function(next) {
   } else {
     box = res;
   }
+  for (const i in box) {
+    let contentH  = '';
+    for (const index in box[i].content) {
+      contentH += `<p><img src=${box[i].content[index]} /></p>`;
+    }
+    box[i].content = contentH;
+  }
   this.body = {
     status: 1,
     data: box,
@@ -965,18 +1019,29 @@ router.get('/get_all_pgc_list', async function(next) {
 // 新建社区文章
 router.post('/new_pgc_article', async function(next){
   const res = await DB.find('pgc_list', {});
-  this.request.body.p_id = `p_00${res.length >= 9 ? res.length + 1 : 0}${res.length < 9 ? res.length + 1 : ''}`
   const arr = this.request.body.content.split('"');
   this.request.body.content = [];
   this.request.body.type = this.request.body.type.toString();
   this.request.body.read_num = parseInt(this.request.body.read_num);
   this.request.body.like = parseInt(this.request.body.like);
+  if (this.request.body.p_id === undefined) {
+    this.request.body.is_online = false;
+  }
   this.request.body.comment = [];
   for (let i = 1; i < arr.length; i+=2) {
+    if (arr[i].indexOf('https:') > -1) {
+      this.request.body.content.push(arr[i]);
+    }
     this.request.body.content.push(`https:${arr[i]}`);
   }
-  console.log(this.request.body);
-  const ret = await DB.insert('pgc_list', this.request.body);
+  let ret;
+  if (this.request.body.p_id !== undefined) {
+    delete this.request.body._id;
+    ret = await DB.update('pgc_list', { p_id : this.request.body.p_id }, this.request.body);
+  } else {
+    this.request.body.p_id = `p_00${res.length >= 9 ? res.length + 1 : 0}${res.length < 9 ? res.length + 1 : ''}`;
+    ret = await DB.insert('pgc_list', this.request.body);
+  }
   if (ret.result.ok === 1) {
     this.body = {
       status: 1,
@@ -984,6 +1049,28 @@ router.post('/new_pgc_article', async function(next){
     }
   }
 });
+
+
+// 修改评论条件
+router.post('/update_comment', async function(next) {
+  const searchArr = this.request.body.id.split('_');
+  const commentId = searchArr.pop();
+  const res = await DB.find('pgc_list', { p_id: searchArr.join('_') });
+  for (const i in res[0].comment) {
+    if (res[0].comment[i].c_id === this.request.body.id) {
+      res[0].comment[i].top = this.request.body.top === undefined ? res[0].comment[i].top : this.request.body.top;
+      res[0].comment[i].status = this.request.body.status === undefined ? res[0].comment[i].status : this.request.body.status;
+    }
+  }
+  const ret = await DB.update('pgc_list', { p_id: searchArr.join('_') }, res[0]);
+  if (ret.result.ok === 1) {
+    this.body = {
+      status: 1,
+      msg: 'ok'
+    };
+  }
+});
+
 
 module.exports = router;
 
